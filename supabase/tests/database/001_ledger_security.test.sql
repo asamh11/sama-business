@@ -59,7 +59,8 @@ insert into accounts (id, org_id, code, name, type) values
   ('d0000000-0000-0000-0000-000000000003', 'b0000000-0000-0000-0000-000000000001', '1000', 'Cash', 'asset');
 insert into activation_codes (code_hash, plan_code, months)
   values (extensions.digest(convert_to('TEST-CODE-0001', 'UTF8'), 'sha256'), 'shop', 1),
-         (extensions.digest(convert_to('TEST-CODE-0002', 'UTF8'), 'sha256'), 'mall', 1);
+         (extensions.digest(convert_to('TEST-CODE-0002', 'UTF8'), 'sha256'), 'mall', 1),
+         (extensions.digest(convert_to('TEST-CODE-0003', 'UTF8'), 'sha256'), 'shop', 1);
 
 select is((select count(*) from pg_tables where schemaname = 'public' and not rowsecurity)::int, 0,
   'RLS is enabled on every public table');
@@ -158,8 +159,8 @@ select throws_ok($$update accounts set type = 'expense' where id = 'd0000000-000
 select is((select count(*) from activation_codes)::int, 0, 'clients cannot read activation codes');
 select isnt(public.redeem_activation_code('a0000000-0000-0000-0000-000000000001', ' test-code-0001 '), null, 'owner redeems a valid code');
 select is((select plan_code from subscriptions where org_id = 'a0000000-0000-0000-0000-000000000001'), 'shop', 'plan upgraded');
-select throws_ok($$select public.redeem_activation_code('a0000000-0000-0000-0000-000000000001', 'TEST-CODE-0001')$$,
-  'P0001', null, 'a code cannot be used twice');
+select is(public.redeem_activation_code('a0000000-0000-0000-0000-000000000001', 'TEST-CODE-0001'),
+  null::timestamptz, 'a used code is refused (returns NULL)');
 
 -- organization creation ------------------------------------------------------------------------------
 select public.test_as('c0000000-0000-0000-0000-000000000005');
@@ -183,6 +184,43 @@ select throws_ok($$update branches set org_id = 'b0000000-0000-0000-0000-0000000
   '22023', null, 'a branch cannot be moved to another organization');
 select throws_ok($$select public.post_journal_entry('a0000000-0000-0000-0000-000000000001', 'e0000000-0000-0000-0000-000000000099', current_date, 'x', 'br1', public.test_lines())$$,
   '23503', null, 'unknown branch rejected');
+
+-- 0003: audit, closed books, member management, throttling ----------------------------------
+select public.test_as('c0000000-0000-0000-0000-000000000007');
+select ok(exists (select 1 from audit_logs where entity = 'accounts' and action = 'insert' and data->'new'->>'code' = '5000'),
+  'account creation is audited with the new row');
+
+select public.test_as('c0000000-0000-0000-0000-000000000001');
+select is(public.close_books('a0000000-0000-0000-0000-000000000001', current_date - 10), current_date - 10, 'owner closes the books');
+select throws_ok($$select public.post_journal_entry('a0000000-0000-0000-0000-000000000001', null, current_date - 20, 'x', 'cb0', public.test_lines())$$,
+  '55000', null, 'posting into a closed period is rejected');
+select throws_ok($$select public.post_journal_entry('a0000000-0000-0000-0000-000000000001', null, current_date - 10, 'x', 'cb1', public.test_lines())$$,
+  '55000', null, 'the closing date itself is closed');
+select isnt(public.post_journal_entry('a0000000-0000-0000-0000-000000000001', null, current_date - 9, 'x', 'cb2', public.test_lines('50')), null,
+  'posting after the closing date still works');
+select throws_ok($$select public.reverse_journal_entry((select id from journal_entries where idempotency_key = 'k2'), 'rcb', null, current_date - 20)$$,
+  '55000', null, 'reversal dated in a closed period is rejected');
+select throws_ok($$select public.close_books('a0000000-0000-0000-0000-000000000001', current_date - 11)$$, '55000', null, 'closed books cannot be reopened');
+select throws_ok($$select public.close_books('a0000000-0000-0000-0000-000000000001', current_date + 1)$$, '22023', null, 'cannot close books in the future');
+select public.test_as('c0000000-0000-0000-0000-000000000002');
+select throws_ok($$select public.close_books('a0000000-0000-0000-0000-000000000001', current_date - 5)$$, '42501', null, 'cashier cannot close books');
+select throws_ok($$select public.add_member('a0000000-0000-0000-0000-000000000001', 'c0000000-0000-0000-0000-000000000005', 'viewer')$$, '42501', null, 'cashier cannot add members');
+select public.test_as('c0000000-0000-0000-0000-000000000007');
+select throws_ok($$select public.remove_member('a0000000-0000-0000-0000-000000000001', 'c0000000-0000-0000-0000-000000000001')$$, '42501', null, 'admin cannot remove an owner');
+select throws_ok($$select public.add_member('a0000000-0000-0000-0000-000000000001', 'c0000000-0000-0000-0000-000000000005', 'owner')$$, '42501', null, 'admin cannot add an owner');
+
+select public.test_as('c0000000-0000-0000-0000-000000000004');
+select lives_ok($$select public.add_member('b0000000-0000-0000-0000-000000000001', 'c0000000-0000-0000-0000-000000000002', 'cashier')$$, 'owner adds a member');
+select throws_ok($$select public.add_member('b0000000-0000-0000-0000-000000000001', 'c0000000-0000-0000-0000-000000000003', 'viewer')$$, '53400', null, 'plan member limit is enforced');
+select lives_ok($$select public.set_member_role('b0000000-0000-0000-0000-000000000001', 'c0000000-0000-0000-0000-000000000002', 'accountant')$$, 'owner changes a role');
+select throws_ok($$select public.set_member_role('b0000000-0000-0000-0000-000000000001', 'c0000000-0000-0000-0000-000000000004', 'admin')$$, '55000', null, 'the last owner cannot be demoted');
+select throws_ok($$select public.remove_member('b0000000-0000-0000-0000-000000000001', 'c0000000-0000-0000-0000-000000000004')$$, '55000', null, 'the last owner cannot be removed');
+select lives_ok($$select public.remove_member('b0000000-0000-0000-0000-000000000001', 'c0000000-0000-0000-0000-000000000002')$$, 'owner removes a member');
+
+select is(public.redeem_activation_code('b0000000-0000-0000-0000-000000000001', 'BAD-1'), null::timestamptz, 'a wrong code returns NULL');
+select public.redeem_activation_code('b0000000-0000-0000-0000-000000000001', 'BAD-' || g) from generate_series(2, 5) g;
+select throws_ok($$select public.redeem_activation_code('b0000000-0000-0000-0000-000000000001', 'TEST-CODE-0003')$$,
+  '54000', null, 'after 5 failures even a valid code is blocked for a while');
 
 -- immutability (superuser still cannot rewrite history) ---------------------------------------------------
 reset role;

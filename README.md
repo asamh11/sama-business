@@ -12,7 +12,7 @@
 ## التشغيل
 ```
 npm test                      # اختبارات النواة (Node 22+)
-supabase db reset             # يطبّق 0001 ثم 0002 على قاعدة محلية
+supabase db reset             # يطبّق 0001 ثم 0002 ثم 0003 على قاعدة محلية
 npm run test:db               # اختبارات pgTAP في supabase/tests/database
 scripts/backup_restore_check.sh   # تمرين النسخ الاحتياطي والاستعادة
 ```
