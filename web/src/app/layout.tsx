@@ -4,7 +4,9 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "Sama Business | سما بزنس",
   description: "نظام محاسبي سحابي متعدد الشركات والعملات",
-  manifest: "./manifest.json",
+  manifest: "/manifest.webmanifest",
+  applicationName: "Sama Business",
+  appleWebApp: { capable: true, title: "Sama Business", statusBarStyle: "black-translucent" },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
