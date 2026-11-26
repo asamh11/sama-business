@@ -51,10 +51,18 @@ test("invalid entries are rejected", () => {
   assert.throws(() => validateJournal([L("a", 100n, 0n, "USD"), L("b", 0n, 100n, "SYP")]), JournalError);
 });
 
+test("amounts beyond bigint range are rejected before reaching the database", () => {
+  const big = 2n ** 63n;
+  assert.throws(() => validateJournal([L("a", big, 0n), L("b", 0n, big)]), (e) => e instanceof JournalError && e.code === "INVALID_LINE");
+});
+
 test("AI drafts need human confirmation and cannot be confirmed twice", () => {
   const d = newDraft("d1", "voice", "Cash sale 100 USD", [L("cash", 100n, 0n), L("revenue", 0n, 100n)]);
   assert.equal(d.status, "pending_confirmation");
   assert.throws(() => confirmDraft(d, ""));
-  assert.equal(confirmDraft(d, "user-1").idempotencyKey, "draft:d1");
+  const res = confirmDraft(d, "user-1");
+  assert.equal(res.idempotencyKey, "draft:d1");
+  assert.equal(res.draft.status, "confirmed");
+  assert.throws(() => confirmDraft(res.draft, "user-1"));
   assert.throws(() => confirmDraft({ ...d, status: "confirmed" }, "user-1"));
 });

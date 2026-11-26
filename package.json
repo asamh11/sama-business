@@ -4,6 +4,10 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node --test tests/*.test.ts"
+    "test": "node --test tests/*.test.ts",
+    "test:db": "supabase test db"
+  },
+  "engines": {
+    "node": ">=22.18"
   }
 }

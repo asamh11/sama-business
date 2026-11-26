@@ -1,0 +1,22 @@
+{
+  "accountTypes": [
+    "asset",
+    "liability",
+    "equity",
+    "revenue",
+    "expense"
+  ],
+  "memberRoles": [
+    "owner",
+    "admin",
+    "accountant",
+    "cashier",
+    "viewer"
+  ],
+  "lineKeys": {
+    "account": "accountId",
+    "currency": "currency",
+    "debit": "debit",
+    "credit": "credit"
+  }
+}
