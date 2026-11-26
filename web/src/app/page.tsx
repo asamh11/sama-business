@@ -7,6 +7,9 @@ import {
   BookOpen,
   Building2,
   CheckCircle2,
+  Download,
+  Languages,
+  Printer,
   Lock,
   LogOut,
   Plus,
@@ -18,6 +21,9 @@ import {
 import { isSupabaseConfigured, supabase } from "@/lib/supabase";
 import { formatMinor, parseMinor } from "@/lib/money";
 import schema from "@/lib/schema.json";
+import { translate, dirOf, LANGS, type Lang } from "@/lib/i18n";
+import { ACCOUNT_MODES, CAN, navFor, roleAllows, type AccountMode, type NavId } from "@/lib/nav";
+import { deriveAlerts, statements, toCSV, trialBalance } from "@/lib/reports";
 
 type Currency = { code: string; decimals: number };
 type Org = { id: string; name: string; base_currency: string; created_at: string };
@@ -52,7 +58,11 @@ const ACC_TYPE_AR: Record<string, string> = {
   expense: "مصروفات",
 };
 
-const todayISO = () => new Date().toISOString().slice(0, 10);
+const todayISO = () => {
+  const now = new Date();
+  const local = new Date(now.getTime() - now.getTimezoneOffset() * 60_000);
+  return local.toISOString().slice(0, 10);
+};
 
 export default function HomePage() {
   const [user, setUser] = useState<User | null>(null);
@@ -70,7 +80,12 @@ export default function HomePage() {
   ]);
   const [orgs, setOrgs] = useState<Org[]>([]);
   const [activeOrgId, setActiveOrgId] = useState<string>("");
-  const [tab, setTab] = useState<"overview" | "accounts" | "journal" | "controls">("overview");
+  const [section, setSection] = useState<NavId>("home");
+  const [lang, setLang] = useState<Lang>("ar");
+  const [mode, setMode] = useState<AccountMode>("enterprise");
+  const [role, setRole] = useState<string | null>(null);
+  const t = (key: string, params?: Record<string, string>) => translate(lang, key, params);
+  const dir = dirOf(lang);
 
   const [branches, setBranches] = useState<Branch[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
@@ -144,6 +159,8 @@ export default function HomePage() {
       supabase.from("journal_lines").select("*").eq("org_id", orgId),
       supabase.from("audit_logs").select("id,action,entity,at").eq("org_id", orgId).order("at", { ascending: false }).limit(30),
     ]);
+    const failed = [bRes, aRes, cRes, eRes, lRes, auRes].find((result) => result.error);
+    if (failed?.error) notify("err", `تعذر تحميل بيانات المنشأة: ${failed.error.message}`);
     setBranches(bRes.data ?? []);
     setAccounts(aRes.data ?? []);
     setCashboxes(cRes.data ?? []);
@@ -161,8 +178,12 @@ export default function HomePage() {
   }, []);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
+    supabase.auth.getSession().then(({ data, error }) => {
+      if (error) notify("err", `تعذر التحقق من جلسة الدخول: ${error.message}`);
       setUser(data.session?.user ?? null);
+      setAuthLoading(false);
+    }).catch((error: unknown) => {
+      notify("err", error instanceof Error ? error.message : "تعذر الاتصال بخدمة تسجيل الدخول");
       setAuthLoading(false);
     });
     const { data: sub } = supabase.auth.onAuthStateChange((_ev, session) => {
@@ -171,6 +192,27 @@ export default function HomePage() {
     });
     return () => sub.subscription.unsubscribe();
   }, []);
+
+  useEffect(() => {
+    try {
+      const l = localStorage.getItem("sama.lang");
+      const m = localStorage.getItem("sama.mode");
+      if (l && (LANGS as string[]).includes(l)) setLang(l as Lang);
+      if (m && (ACCOUNT_MODES as string[]).includes(m)) setMode(m as AccountMode);
+    } catch { /* التخزين غير متاح: نبقى على الإعدادات الافتراضية */ }
+  }, []);
+
+  useEffect(() => {
+    document.documentElement.lang = lang;
+    document.documentElement.dir = dir;
+    try { localStorage.setItem("sama.lang", lang); localStorage.setItem("sama.mode", mode); } catch { /* تجاهل */ }
+  }, [lang, mode, dir]);
+
+  useEffect(() => {
+    if (!user || !activeOrgId) { setRole(null); return; }
+    supabase.from("memberships").select("role").eq("org_id", activeOrgId).eq("user_id", user.id).maybeSingle()
+      .then(({ data }) => setRole((data?.role as string | undefined) ?? null));
+  }, [user, activeOrgId]);
 
   useEffect(() => {
     if (user) loadBase();
@@ -373,6 +415,35 @@ export default function HomePage() {
 
   const reversedIds = new Set(entries.map((e) => e.reverses_entry_id).filter(Boolean));
 
+  const trial = trialBalance(accounts, lines);
+  const stmts = statements(trial.rows);
+  const truncated = lines.length >= 1000;
+  const alerts = deriveAlerts({
+    branches: branches.length, accounts: accounts.length, cashboxes: cashboxes.length,
+    entries: entries.length, totals: trial.totals, orphanAccounts: trial.orphanAccounts, truncated,
+  });
+  const cashAccountIds = new Set(cashboxes.map((c) => c.account_id));
+  const cashBalances = new Map<string, bigint>();
+  for (const r of trial.rows) if (cashAccountIds.has(r.accountId)) cashBalances.set(r.currency, (cashBalances.get(r.currency) ?? BigInt(0)) + r.balance);
+  const navItems = navFor(mode);
+  const canPost = roleAllows(role, CAN.post);
+  const canReverse = roleAllows(role, CAN.reverse);
+  const canClose = roleAllows(role, CAN.closeBooks);
+  const canRedeem = roleAllows(role, CAN.redeem);
+
+  function exportTrialCsv() {
+    const rows: string[][] = [[t("reports.code"), t("reports.account"), t("reports.currency"), t("reports.debit"), t("reports.credit"), t("reports.balanceCol")]];
+    for (const r of trial.rows) {
+      const d = decimalsOf(r.currency);
+      rows.push([r.code, r.name, r.currency, formatMinor(r.debit, d), formatMinor(r.credit, d), formatMinor(r.balance, d)]);
+    }
+    const blob = new Blob([toCSV(rows)], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = `trial-balance-${todayISO()}.csv`; a.click();
+    URL.revokeObjectURL(url);
+  }
+
   if (!isSupabaseConfigured) {
     return (
       <main className="max-w-lg mx-auto p-6 mt-12 bg-slate-900 border border-rose-500/40 rounded-2xl">
@@ -463,7 +534,7 @@ export default function HomePage() {
   }
 
   return (
-    <div className="max-w-5xl mx-auto p-4 pb-16 space-y-5">
+    <div dir={dir} className="max-w-5xl mx-auto p-4 pb-16 space-y-5">
       {/* Header */}
       <header className="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
@@ -490,6 +561,21 @@ export default function HomePage() {
               ))}
             </select>
           )}
+          <select
+            value={mode}
+            onChange={(e) => setMode(e.target.value as AccountMode)}
+            aria-label={t("mode.label")}
+            className="bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-sm"
+          >
+            {ACCOUNT_MODES.map((m) => <option key={m} value={m}>{t(`mode.${m}`)}</option>)}
+          </select>
+          <button
+            onClick={() => setLang(lang === "ar" ? "en" : "ar")}
+            className="flex items-center gap-1.5 px-3 py-2 bg-slate-800 hover:bg-slate-700 rounded-xl text-xs"
+          >
+            <Languages className="w-4 h-4" />
+            {lang === "ar" ? "English" : "العربية"}
+          </button>
           <button
             onClick={() => (activeOrgId ? loadOrgData(activeOrgId) : loadBase())}
             className="p-2 bg-slate-800 hover:bg-slate-700 rounded-xl text-slate-300"
@@ -549,36 +635,74 @@ export default function HomePage() {
         </section>
       ) : (
         <>
-          {/* Navigation Tabs */}
-          <nav className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-            {[
-              { id: "overview", label: "نظرة عامة", icon: Building2 },
-              { id: "accounts", label: "الحسابات والصناديق", icon: Wallet },
-              { id: "journal", label: "القيود اليومية", icon: BookOpen },
-              { id: "controls", label: "الضوابط والتدقيق", icon: ShieldCheck },
-            ].map((item) => {
-              const Icon = item.icon;
-              const active = tab === item.id;
+          {/* القائمة الرئيسية (حسب نمط الحساب والمواصفات) */}
+          <nav className="grid grid-cols-2 sm:grid-cols-4 gap-2" aria-label="main">
+            {navItems.map((item) => {
+              const active = section === item.id;
               return (
                 <button
                   key={item.id}
-                  onClick={() => setTab(item.id as typeof tab)}
+                  onClick={() => setSection(item.id)}
                   className={`flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl text-sm font-medium border transition ${
                     active
                       ? "bg-emerald-600/20 border-emerald-500 text-emerald-300"
                       : "bg-slate-900 border-slate-800 text-slate-400 hover:text-slate-200"
                   }`}
                 >
-                  <Icon className="w-4 h-4" />
-                  {item.label}
+                  {t(`nav.${item.id}`)}
+                  {item.status === "soon" && (
+                    <span className="text-[10px] bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded">{t("soon.badge")}</span>
+                  )}
                 </button>
               );
             })}
           </nav>
 
+          {role && (
+            <p className="text-xs text-slate-400">{t("role.label")}: {t(`role.${role}`)}</p>
+          )}
+
           {/* TAB 1: OVERVIEW */}
-          {tab === "overview" && (
+          {section === "home" && (
             <div className="space-y-4">
+              <h2 className="font-bold">{t("home.title")}</h2>
+              <p className="text-xs text-slate-400">{t("home.scope")}</p>
+
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                {Object.entries(stmts).flatMap(([cur, st]) => {
+                  const d = decimalsOf(cur);
+                  return [
+                    { k: `rev-${cur}`, label: `${t("kpi.revenue")} (${cur})`, val: formatMinor(st.revenue, d) },
+                    { k: `exp-${cur}`, label: `${t("kpi.expense")} (${cur})`, val: formatMinor(st.expense, d) },
+                    { k: `net-${cur}`, label: `${t("kpi.net")} (${cur})`, val: formatMinor(st.netIncome, d) },
+                    { k: `ast-${cur}`, label: `${t("kpi.assets")} (${cur})`, val: formatMinor(st.assets, d) },
+                    { k: `lia-${cur}`, label: `${t("kpi.liabilities")} (${cur})`, val: formatMinor(st.liabilities, d) },
+                  ];
+                }).concat([...cashBalances.entries()].map(([cur, bal]) => ({
+                  k: `cash-${cur}`, label: `${t("kpi.cash")} (${cur})`, val: formatMinor(bal, decimalsOf(cur)),
+                }))).map((c) => (
+                  <div key={c.k} className="bg-slate-900 border border-slate-800 rounded-2xl p-4">
+                    <p className="text-xs text-slate-400">{c.label}</p>
+                    <p className="text-lg font-bold mt-1 text-emerald-400 font-mono" dir="ltr">{c.val}</p>
+                  </div>
+                ))}
+              </div>
+
+              <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-2">
+                <h3 className="font-bold text-sm flex items-center gap-2"><AlertCircle className="w-4 h-4 text-amber-400" />{t("alerts.title")}</h3>
+                {alerts.length === 0 ? (
+                  <p className="text-xs text-slate-400">{t("alerts.none")}</p>
+                ) : (
+                  <ul className="space-y-1.5 text-xs">
+                    {alerts.map((al) => (
+                      <li key={al.id} className={`px-3 py-2 rounded-lg border ${al.level === "high" ? "bg-rose-950/60 border-rose-500/30 text-rose-300" : al.level === "medium" ? "bg-amber-950/40 border-amber-500/30 text-amber-300" : "bg-slate-950 border-slate-800 text-slate-300"}`}>
+                        {t(`alert.${al.key}`, al.params)}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 {[
                   { label: "الفروع", val: branches.length },
@@ -637,10 +761,10 @@ export default function HomePage() {
           )}
 
           {/* TAB 2: ACCOUNTS & CASHBOXES */}
-          {tab === "accounts" && (
+          {(section === "branches" || section === "accounting" || section === "cash") && (
             <div className="grid md:grid-cols-2 gap-4">
               {/* Branches */}
-              <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-3">
+              {section === "branches" && <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-3">
                 <h2 className="font-bold text-sm">الفروع ({branches.length})</h2>
                 <form onSubmit={handleAddBranch} className="flex gap-2">
                   <input
@@ -657,10 +781,10 @@ export default function HomePage() {
                     <li key={b.id} className="bg-slate-950 px-3 py-2 rounded-xl border border-slate-800/80">{b.name}</li>
                   ))}
                 </ul>
-              </div>
+              </div>}
 
               {/* Add Account */}
-              <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-3">
+              {section === "accounting" && <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-3">
                 <h2 className="font-bold text-sm">إضافة حساب محاسبي جديد</h2>
                 <form onSubmit={handleAddAccount} className="space-y-2.5">
                   <div className="grid grid-cols-3 gap-2">
@@ -692,10 +816,10 @@ export default function HomePage() {
                     <button className="bg-emerald-600 hover:bg-emerald-500 px-4 py-2 rounded-xl text-sm">حفظ</button>
                   </div>
                 </form>
-              </div>
+              </div>}
 
               {/* Cashboxes */}
-              <div className="md:col-span-2 bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-3">
+              {section === "cash" && <div className="md:col-span-2 bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-3">
                 <h2 className="font-bold text-sm">الصناديق ({cashboxes.length})</h2>
                 <form onSubmit={handleAddCashbox} className="grid sm:grid-cols-5 gap-2">
                   <input
@@ -726,12 +850,12 @@ export default function HomePage() {
                     </div>
                   ))}
                 </div>
-              </div>
+              </div>}
             </div>
           )}
 
           {/* TAB 3: JOURNAL ENTRIES */}
-          {tab === "journal" && (
+          {section === "accounting" && (
             <div className="space-y-4">
               <form onSubmit={handlePostJournal} className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-4">
                 <h2 className="font-bold text-sm">ترحيل قيد يومية جديد (قيد مزدوج متوازن)</h2>
@@ -794,7 +918,7 @@ export default function HomePage() {
                   >
                     <Plus className="w-4 h-4" /> سطر إضافي
                   </button>
-                  <button disabled={busy} className="bg-emerald-600 hover:bg-emerald-500 px-5 py-2 rounded-xl text-sm font-semibold">
+                  <button disabled={busy || !canPost} className="bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 px-5 py-2 rounded-xl text-sm font-semibold">
                     ترحيل القيد الآن
                   </button>
                 </div>
@@ -819,7 +943,7 @@ export default function HomePage() {
                                 <span className="mr-2 text-[11px] bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded">قيد عكسي</span>
                               )}
                             </div>
-                            {!isReversed && (
+                            {!isReversed && canReverse && (
                               <button
                                 onClick={() => handleReverse(en.id)}
                                 disabled={busy}
@@ -855,14 +979,14 @@ export default function HomePage() {
           )}
 
           {/* TAB 4: CONTROLS & AUDIT */}
-          {tab === "controls" && (
+          {section === "settings" && (
             <div className="grid md:grid-cols-2 gap-4">
               <form onSubmit={handleCloseBooks} className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-3">
                 <h2 className="font-bold text-sm flex items-center gap-2"><Lock className="w-4 h-4 text-amber-400" /> إقفال الفترة المحاسبية</h2>
                 <p className="text-xs text-slate-400">يمنع ترحيل أو عكس أي قيد بتاريخ يساوي أو يسبق تاريخ الإقفال.</p>
                 <div className="flex gap-2">
                   <input type="date" value={closeDate} onChange={(e) => setCloseDate(e.target.value)} className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm" />
-                  <button className="bg-amber-600 hover:bg-amber-500 px-4 py-2 rounded-xl text-sm font-semibold">إقفال</button>
+                  <button disabled={!canClose} className="bg-amber-600 hover:bg-amber-500 disabled:opacity-40 px-4 py-2 rounded-xl text-sm font-semibold">إقفال</button>
                 </div>
               </form>
 
@@ -875,7 +999,7 @@ export default function HomePage() {
                     placeholder="أدخل رمز التفعيل"
                     className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm"
                   />
-                  <button className="bg-emerald-600 hover:bg-emerald-500 px-4 py-2 rounded-xl text-sm font-semibold">تفعيل</button>
+                  <button disabled={!canRedeem} className="bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 px-4 py-2 rounded-xl text-sm font-semibold">تفعيل</button>
                 </div>
               </form>
 
@@ -894,6 +1018,112 @@ export default function HomePage() {
                   </div>
                 )}
               </div>
+            </div>
+          )}
+
+          {/* التقارير المالية: ميزان المراجعة وقائمة الدخل والميزانية (لكل عملة على حدة) */}
+          {section === "reports" && (
+            <div className="space-y-4">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <h2 className="font-bold">{t("reports.title")}</h2>
+                <div className="flex gap-2 print:hidden">
+                  <button onClick={exportTrialCsv} className="flex items-center gap-1.5 px-3 py-2 bg-slate-800 hover:bg-slate-700 rounded-xl text-xs"><Download className="w-4 h-4" />{t("reports.exportCsv")}</button>
+                  <button onClick={() => window.print()} className="flex items-center gap-1.5 px-3 py-2 bg-slate-800 hover:bg-slate-700 rounded-xl text-xs"><Printer className="w-4 h-4" />{t("reports.print")}</button>
+                </div>
+              </div>
+              <p className="text-xs text-slate-400">{t("reports.source")} — {t("reports.asOf")} {todayISO()}</p>
+
+              {trial.rows.length === 0 ? (
+                <p className="text-xs text-slate-400">{t("reports.empty")}</p>
+              ) : (
+                <>
+                  <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 overflow-x-auto">
+                    <h3 className="font-bold text-sm mb-3">{t("reports.trial")}</h3>
+                    <table className="w-full text-sm">
+                      <thead className="text-xs text-slate-400 border-b border-slate-800">
+                        <tr>
+                          <th className="py-2 text-start">{t("reports.code")}</th>
+                          <th className="py-2 text-start">{t("reports.account")}</th>
+                          <th className="py-2 text-start">{t("reports.currency")}</th>
+                          <th className="py-2 text-end">{t("reports.debit")}</th>
+                          <th className="py-2 text-end">{t("reports.credit")}</th>
+                          <th className="py-2 text-end">{t("reports.balanceCol")}</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-800/70 font-mono text-xs">
+                        {trial.rows.map((r) => {
+                          const d = decimalsOf(r.currency);
+                          return (
+                            <tr key={`${r.accountId}-${r.currency}`}>
+                              <td className="py-2 text-slate-400">{r.code}</td>
+                              <td className="py-2 font-sans">{r.name}</td>
+                              <td className="py-2">{r.currency}</td>
+                              <td className="py-2 text-end" dir="ltr">{formatMinor(r.debit, d)}</td>
+                              <td className="py-2 text-end" dir="ltr">{formatMinor(r.credit, d)}</td>
+                              <td className="py-2 text-end" dir="ltr">{formatMinor(r.balance, d)}</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                      <tfoot className="text-xs border-t border-slate-700">
+                        {Object.entries(trial.totals).map(([cur, tot]) => {
+                          const d = decimalsOf(cur);
+                          return (
+                            <tr key={cur}>
+                              <td colSpan={3} className="py-2 font-semibold">{t("reports.total")} {cur} — <span className={tot.balanced ? "text-emerald-400" : "text-rose-400"}>{tot.balanced ? t("reports.balanced") : t("reports.notBalanced")}</span></td>
+                              <td className="py-2 text-end font-mono" dir="ltr">{formatMinor(tot.debit, d)}</td>
+                              <td className="py-2 text-end font-mono" dir="ltr">{formatMinor(tot.credit, d)}</td>
+                              <td />
+                            </tr>
+                          );
+                        })}
+                      </tfoot>
+                    </table>
+                  </div>
+
+                  <div className="grid md:grid-cols-2 gap-4">
+                    {Object.entries(stmts).map(([cur, st]) => {
+                      const d = decimalsOf(cur);
+                      const row = (label: string, v: bigint, strong = false) => (
+                        <div className={`flex justify-between py-1 ${strong ? "font-bold border-t border-slate-700 mt-1 pt-2" : ""}`}>
+                          <span>{label}</span><span className="font-mono" dir="ltr">{formatMinor(v, d)}</span>
+                        </div>
+                      );
+                      return (
+                        <div key={cur} className="contents">
+                          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 text-sm">
+                            <h3 className="font-bold text-sm mb-2">{t("reports.income")} ({cur})</h3>
+                            {row(t("reports.revenue"), st.revenue)}
+                            {row(t("reports.expense"), st.expense)}
+                            {row(t("reports.netIncome"), st.netIncome, true)}
+                          </div>
+                          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 text-sm">
+                            <h3 className="font-bold text-sm mb-2">{t("reports.balance")} ({cur})</h3>
+                            {row(t("reports.assets"), st.assets, true)}
+                            {row(t("reports.liabilities"), st.liabilities)}
+                            {row(t("reports.equity"), st.equity)}
+                            {row(t("reports.currentEarnings"), st.netIncome)}
+                            {row(t("reports.liabEquity"), st.liabilities + st.equity + st.netIncome, true)}
+                            <p className={`text-xs mt-2 ${st.imbalance === BigInt(0) ? "text-emerald-400" : "text-rose-400"}`}>{t("reports.check")}: {formatMinor(st.imbalance, d)}</p>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+
+          {/* وحدات مخططة ولم تُبنَ بعد: لا تُعرض كمكتملة */}
+          {navItems.find((n) => n.id === section)?.status === "soon" && (
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-3">
+              <h2 className="font-bold">{t(`nav.${section}`)} <span className="text-[10px] bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded">{t("soon.badge")}</span></h2>
+              <p className="text-sm text-amber-300">{t("soon.title")}</p>
+              <p className="text-xs text-slate-400">{t("soon.note")}</p>
+              <ul className="list-disc ps-5 space-y-1 text-sm text-slate-300">
+                {t(`soon.${section}`).split("|").map((x) => <li key={x}>{x}</li>)}
+              </ul>
             </div>
           )}
         </>
