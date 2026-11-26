@@ -8,6 +8,9 @@ export interface JournalLine {
   readonly credit: bigint;
 }
 
+/** Postgres bigint ceiling: larger amounts would fail in the database. */
+export const MAX_MINOR = 2n ** 63n - 1n;
+
 export type JournalErrorCode = "TOO_FEW_LINES" | "INVALID_LINE" | "UNBALANCED";
 
 export class JournalError extends Error {
@@ -24,6 +27,9 @@ export function validateJournal(lines: readonly JournalLine[]): void {
   }
   const totals = new Map<string, bigint>();
   for (const l of lines) {
+    if (l.debit > MAX_MINOR || l.credit > MAX_MINOR) {
+      throw new JournalError("INVALID_LINE", "amount exceeds the supported range");
+    }
     if (l.debit < 0n || l.credit < 0n || (l.debit > 0n) === (l.credit > 0n)) {
       throw new JournalError("INVALID_LINE", "each line needs exactly one positive side");
     }

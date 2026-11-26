@@ -28,5 +28,10 @@ export function confirmDraft(d: DraftOperation, userId: string) {
   if (!userId) throw new Error("confirmation requires a signed-in user");
   if (d.status !== "pending_confirmation") throw new Error(`draft is ${d.status}`);
   validateJournal(d.lines);
-  return { idempotencyKey: `draft:${d.id}`, confirmedBy: userId, lines: d.lines };
+  return {
+    idempotencyKey: `draft:${d.id}`,
+    confirmedBy: userId,
+    lines: d.lines,
+    draft: { ...d, status: "confirmed" as const },
+  };
 }
