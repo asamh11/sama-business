@@ -4,7 +4,8 @@
 # RESTORE_DB_URL EMPTY scratch database with the same migrations applied
 set -euo pipefail
 : "${SOURCE_DB_URL:?set SOURCE_DB_URL}" "${RESTORE_DB_URL:?set RESTORE_DB_URL}"
-dump="$(mktemp)"; trap 'rm -f "$dump"' EXIT
+dump_auth="$(mktemp)"; dump_public="$(mktemp)"
+trap 'rm -f "$dump_auth" "$dump_public"' EXIT
 
 fingerprint() {  # row counts + ledger totals per currency
   psql "$1" -Atq -c "
@@ -17,8 +18,14 @@ fingerprint() {  # row counts + ledger totals per currency
     order by 1"
 }
 
-pg_dump "$SOURCE_DB_URL" -Fc --data-only --schema=public -t auth.users -f "$dump"
-pg_restore --data-only --disable-triggers --no-owner -d "$RESTORE_DB_URL" "$dump"
+# Two explicit dumps, not one call mixing --schema and -t (that combination
+# silently kept only auth.users and dropped every public-schema ledger table
+# the fingerprint above actually checks). auth.users restores first: rows in
+# public reference it by foreign key (memberships.user_id, journal_entries.created_by).
+pg_dump "$SOURCE_DB_URL" -Fc --data-only -t auth.users -f "$dump_auth"
+pg_dump "$SOURCE_DB_URL" -Fc --data-only --schema=public -f "$dump_public"
+pg_restore --data-only --disable-triggers --no-owner -d "$RESTORE_DB_URL" "$dump_auth"
+pg_restore --data-only --disable-triggers --no-owner -d "$RESTORE_DB_URL" "$dump_public"
 
 if diff <(fingerprint "$SOURCE_DB_URL") <(fingerprint "$RESTORE_DB_URL"); then
   echo "OK: restored data matches the source"
