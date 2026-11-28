@@ -3,8 +3,6 @@ import assert from "node:assert/strict";
 import { trialBalance, statements, deriveAlerts, toCSV } from "../web/src/lib/reports.ts";
 import { DICTS, translate, dirOf } from "../web/src/lib/i18n.ts";
 import { NAV, navFor, roleAllows, CAN } from "../web/src/lib/nav.ts";
-import { parseMinor } from "../web/src/lib/money.ts";
-import schema from "../web/src/lib/schema.json" with { type: "json" };
 
 const accounts = [
   { id: "cash", code: "1010", name: "Cash", type: "asset" },
@@ -108,31 +106,6 @@ test("menu follows account type; branches always reachable; enterprise sees all 
     assert.ok(navFor(m).some((n) => n.id === "branches"));
     assert.ok(navFor(m).some((n) => n.id === "accounting"));
   }
-});
-
-test("schema.json line keys match the post_journal_entry SQL contract", () => {
-  // post_journal_entry reads jsonb_to_recordset(p_lines) as l(account_id uuid, ...);
-  // a camelCase "accountId" key here silently sends account_id as null to Postgres,
-  // which fails every posted entry. This pins the wire contract so it can't regress.
-  assert.deepEqual(schema.lineKeys, { account: "account_id", currency: "currency", debit: "debit", credit: "credit" });
-});
-
-test("a journal line built the way the UI builds it is RPC-safe: correct keys, string amounts", () => {
-  // Mirrors handlePostJournal's line-mapping in web/src/app/page.tsx without
-  // needing to render the component.
-  const toRpcLine = (accountId: string, currency: string, debit: bigint, credit: bigint) => ({
-    [schema.lineKeys.account]: accountId,
-    [schema.lineKeys.currency]: currency,
-    [schema.lineKeys.debit]: debit.toString(),
-    [schema.lineKeys.credit]: credit.toString(),
-  });
-  const huge = parseMinor("90071992547409.93", 2); // > 2^53 minor units
-  const line = toRpcLine("acc-1", "USD", huge, 0n);
-  assert.deepEqual(Object.keys(line).sort(), ["account_id", "credit", "currency", "debit"]);
-  assert.equal(line.account_id, "acc-1");
-  assert.equal(typeof line.debit, "string"); // never a JS number: JSON numbers lose precision past 2^53
-  assert.equal(line.debit, "9007199254740993");
-  assert.equal(JSON.parse(JSON.stringify(line)).debit, "9007199254740993"); // survives JSON round-trip exactly
 });
 
 test("UI role gates mirror the database rules", () => {

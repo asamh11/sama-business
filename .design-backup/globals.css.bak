@@ -1,0 +1,199 @@
+@import "tailwindcss";
+
+:root {
+  --royal-900: #1e3a8a;
+  --royal-700: #1d4ed8;
+  --royal-600: #2563eb;
+  --royal-50: #eff6ff;
+  --ink: #0f172a;
+  --muted: #475569;
+  --line: #dbeafe;
+  --surface: #ffffff;
+}
+
+body {
+  min-height: 100vh;
+  color: var(--ink);
+  background: linear-gradient(180deg, #eff6ff 0%, #f8fafc 45%, #ffffff 100%) fixed;
+}
+
+/* البطاقات البيضاء بظل ناعم وحدود زرقاء فاتحة */
+.bg-slate-900 {
+  background: var(--surface) !important;
+  color: var(--ink) !important;
+  border-color: var(--line) !important;
+  box-shadow: 0 6px 22px -10px rgba(30, 58, 138, 0.16);
+}
+.bg-slate-950, input, select, textarea {
+  background-color: #f8fafc !important;
+  color: var(--ink) !important;
+  border-color: #cbd5e1 !important;
+  border-radius: 0.75rem;
+}
+input:focus, select:focus, textarea:focus {
+  outline: none;
+  border-color: var(--royal-600) !important;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.18);
+}
+
+/* الترويسة بالأزرق الملكي */
+header.bg-slate-900 {
+  background: linear-gradient(135deg, var(--royal-900), var(--royal-700)) !important;
+  color: #ffffff !important;
+  border-color: transparent !important;
+}
+header.bg-slate-900 p, header.bg-slate-900 .text-slate-400 { color: #dbeafe !important; }
+header.bg-slate-900 .bg-slate-800 { background: rgba(255, 255, 255, 0.16) !important; color: #ffffff !important; }
+header.bg-slate-900 select { background: rgba(255, 255, 255, 0.95) !important; color: var(--ink) !important; }
+
+/* النصوص والحدود الثانوية */
+.text-slate-100, .text-slate-200 { color: var(--ink) !important; }
+.text-slate-300 { color: #334155 !important; }
+.text-slate-400 { color: var(--muted) !important; }
+.border-slate-800, .border-slate-700, .divide-slate-800\/70 > :not(:first-child) { border-color: var(--line) !important; }
+.bg-slate-800 { background-color: var(--royal-50) !important; color: var(--royal-900) !important; }
+.bg-slate-800:hover { background-color: #dbeafe !important; }
+
+/* الأزرار الأساسية بالأزرق الملكي */
+.bg-emerald-600 {
+  background: linear-gradient(135deg, var(--royal-600), var(--royal-700)) !important;
+  color: #ffffff !important;
+  box-shadow: 0 6px 16px -6px rgba(37, 99, 235, 0.55);
+}
+.bg-emerald-600:hover { filter: brightness(1.06); }
+.bg-emerald-500\/20 { background-color: #dbeafe !important; }
+.text-emerald-400, .text-emerald-300 { color: var(--royal-700) !important; }
+.border-emerald-500 { border-color: var(--royal-600) !important; }
+.bg-emerald-600\/20 { background-color: var(--royal-50) !important; }
+.bg-emerald-950\/70 { background-color: #ecfdf5 !important; color: #065f46 !important; border-color: #a7f3d0 !important; }
+.bg-rose-950\/70 { background-color: #fef2f2 !important; color: #991b1b !important; border-color: #fecaca !important; }
+.text-rose-300, .text-rose-400 { color: #dc2626 !important; }
+.text-amber-300 { color: #b45309 !important; }
+
+/* شريط تنقل سفلي ثابت ومريح على الهاتف + شبكة منظمة على التابلت والكمبيوتر */
+@media (max-width: 640px) {
+  body { padding-bottom: 78px; }
+  nav[aria-label="main"] {
+    position: fixed;
+    bottom: 0; left: 0; right: 0; z-index: 40;
+    display: flex; overflow-x: auto; gap: 6px;
+    padding: 8px 10px calc(8px + env(safe-area-inset-bottom));
+    background: rgba(255, 255, 255, 0.96);
+    backdrop-filter: blur(12px);
+    border-top: 1px solid var(--line);
+    box-shadow: 0 -6px 20px rgba(15, 23, 42, 0.08);
+  }
+  nav[aria-label="main"] button { flex: 0 0 auto; white-space: nowrap; font-size: 12px; padding: 8px 12px; }
+}
+@media print {
+  header, nav, button { display: none !important; }
+  body { background: #fff !important; }
+}
+
+/* تحسين تباين التنبيهات المتوسطة والعالية والمسافة السفلية للهاتف */
+.bg-amber-950\/40 { background-color: #fffbeb !important; color: #92400e !important; border-color: #fde68a !important; }
+.bg-rose-950\/60 { background-color: #fef2f2 !important; color: #991b1b !important; border-color: #fecaca !important; }
+.text-amber-400 { color: #b45309 !important; }
+@media (max-width: 640px) { body { padding-bottom: 104px !important; } }
+
+/* === SAMA_CLEAN_HEADER_V2 === */
+body header {
+  background: #ffffff !important;
+  background-image: none !important;
+  color: #0f172a !important;
+  border: 1px solid #e2e8f0 !important;
+  border-radius: 18px !important;
+  box-shadow: 0 4px 16px -4px rgba(15, 23, 42, 0.06) !important;
+  padding: 0.85rem 1rem !important;
+}
+body header h1,
+body header h2,
+body header strong,
+body header span {
+  color: #0f172a !important;
+}
+body header p {
+  color: #475569 !important;
+  font-size: 0.88rem !important;
+}
+body header select {
+  background-color: #f8fafc !important;
+  color: #0f172a !important;
+  border: 1px solid #cbd5e1 !important;
+  border-radius: 12px !important;
+  padding: 0.45rem 0.75rem !important;
+  font-size: 0.9rem !important;
+  font-weight: 600 !important;
+}
+body header button {
+  background-color: #f1f5f9 !important;
+  color: #0f172a !important;
+  border: 1px solid #e2e8f0 !important;
+  border-radius: 12px !important;
+  padding: 0.45rem 0.75rem !important;
+  font-size: 0.88rem !important;
+  font-weight: 700 !important;
+  box-shadow: none !important;
+}
+body header button:hover {
+  background-color: #e2e8f0 !important;
+}
+body header svg {
+  color: #2563eb !important;
+}
+body header button svg {
+  color: #334155 !important;
+}
+
+/* === SAMA_CLEAN_HEADER_V3_FIX === */
+body header,
+body header > div,
+body header [class*="bg-gradient"],
+body header [class*="bg-blue"],
+body header [class*="bg-indigo"],
+body header [class*="from-blue"] {
+  background: #ffffff !important;
+  background-image: none !important;
+  color: #0f172a !important;
+  border-color: #e2e8f0 !important;
+}
+body header {
+  box-shadow: 0 4px 16px -4px rgba(15, 23, 42, 0.08) !important;
+}
+body header button {
+  background: #f1f5f9 !important;
+  color: #0f172a !important;
+  border: 1px solid #cbd5e1 !important;
+}
+body header select {
+  background: #f8fafc !important;
+  color: #0f172a !important;
+  border: 1px solid #cbd5e1 !important;
+}
+
+/* === SAMA_POWER_BG_V4 === */
+body {
+  background:
+    radial-gradient(650px circle at 92% 4%, rgba(37, 99, 235, 0.14), transparent 60%),
+    radial-gradient(520px circle at 8% 18%, rgba(16, 185, 129, 0.10), transparent 55%),
+    linear-gradient(180deg, #f8fafc 0%, #eef2ff 50%, #f1f5f9 100%) !important;
+  background-attachment: fixed !important;
+  min-height: 100vh;
+}
+.sama-thermal-print { display: none; }
+@media print {
+  body * { visibility: hidden !important; }
+  .sama-thermal-print, .sama-thermal-print * { visibility: visible !important; }
+  .sama-thermal-print {
+    display: block !important;
+    position: fixed !important;
+    inset: 0 !important;
+    width: 80mm !important;
+    margin: 0 auto !important;
+    padding: 4mm !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+    font-size: 12px !important;
+    line-height: 1.5 !important;
+  }
+}

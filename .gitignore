@@ -12,3 +12,9 @@ web/.next/
 web/.env.local
 
 web/out/
+.env.local
+web/.next
+web/out
+node_modules
+web/node_modules
+*.zip

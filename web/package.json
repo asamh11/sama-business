@@ -6,7 +6,9 @@
   "scripts": {
     "dev": "next dev -H 0.0.0.0 -p 8080",
     "build": "next build",
-    "start": "next start -H 0.0.0.0 -p 8080"
+    "start": "next start -H 0.0.0.0 -p 8080",
+    "predev": "[ -f .env.local ] || ([ -f \"$HOME/.sama-supabase.env\" ] && cp \"$HOME/.sama-supabase.env\" .env.local) || true",
+    "prebuild": "[ -f .env.local ] || ([ -f \"$HOME/.sama-supabase.env\" ] && cp \"$HOME/.sama-supabase.env\" .env.local) || true"
   },
   "keywords": [],
   "type": "module",

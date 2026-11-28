@@ -4,7 +4,6 @@ import { useCallback, useEffect, useState } from "react";
 import type { User } from "@supabase/supabase-js";
 import {
   AlertCircle,
-  BookOpen,
   Building2,
   CheckCircle2,
   Download,
@@ -15,8 +14,6 @@ import {
   Plus,
   RefreshCw,
   RotateCcw,
-  ShieldCheck,
-  Wallet,
 } from "lucide-react";
 import { isSupabaseConfigured, supabase } from "@/lib/supabase";
 import { formatMinor, parseMinor } from "@/lib/money";
@@ -24,6 +21,15 @@ import schema from "@/lib/schema.json";
 import { translate, dirOf, LANGS, type Lang } from "@/lib/i18n";
 import { ACCOUNT_MODES, CAN, navFor, roleAllows, type AccountMode, type NavId } from "@/lib/nav";
 import { deriveAlerts, statements, toCSV, trialBalance } from "@/lib/reports";
+import { InventoryView } from "@/components/InventoryView";
+import { SmartAiHub } from "@/components/SmartAiHub";
+import { RoyalHomeDashboard } from "@/components/RoyalHomeDashboard";
+import { RoyalStatusStrip } from "@/components/RoyalStatusStrip";
+import { VoiceAndThermalSuite } from "@/components/VoiceAndThermalSuite";
+import { DebtsProPanel } from "@/components/DebtsProPanel";
+import { CompleteLedgerView } from "@/components/CompleteLedgerView";
+import { ActionMetricsPanel } from "@/components/ActionMetricsPanel";
+import { InvoicesView } from "@/components/InvoicesView";
 
 type Currency = { code: string; decimals: number };
 type Org = { id: string; name: string; base_currency: string; created_at: string };
@@ -84,6 +90,13 @@ export default function HomePage() {
   const [lang, setLang] = useState<Lang>("ar");
   const [mode, setMode] = useState<AccountMode>("enterprise");
   const [role, setRole] = useState<string | null>(null);
+  const [isOwner, setIsOwner] = useState(false);
+  const [confirmReq, setConfirmReq] = useState<{ title: string; msg: string; run: () => void } | null>(null);
+  const askConfirm = (title: string, msg: string, run: () => void) => setConfirmReq({ title, msg, run });
+  const [ownerRows, setOwnerRows] = useState<Array<Record<string, string | number | null>>>([]);
+  const [issuedCode, setIssuedCode] = useState<string | null>(null);
+  const [codePlan, setCodePlan] = useState("shop");
+  const [codeMonths, setCodeMonths] = useState("12");
   const t = (key: string, params?: Record<string, string>) => translate(lang, key, params);
   const dir = dirOf(lang);
 
@@ -92,7 +105,6 @@ export default function HomePage() {
   const [cashboxes, setCashboxes] = useState<Cashbox[]>([]);
   const [entries, setEntries] = useState<JournalEntry[]>([]);
   const [lines, setLines] = useState<JournalLine[]>([]);
-  const [linesTotalCount, setLinesTotalCount] = useState<number | null>(null);
   const [audits, setAudits] = useState<AuditLog[]>([]);
 
   // Forms
@@ -133,7 +145,7 @@ export default function HomePage() {
     if (orgRes.error) {
       notify(
         "err",
-        `تعذر قراءة الجداول (${orgRes.error.message}). تأكد من تطبيق ملفات SQL الثلاثة في Supabase SQL Editor.`
+        `تعذر قراءة الجداول (${orgRes.error.message}). تأكد من تطبيق ملفات SQL السبعة (0001 إلى 0007) في Supabase SQL Editor.`
       );
       return;
     }
@@ -157,17 +169,24 @@ export default function HomePage() {
       supabase.from("accounts").select("*").eq("org_id", orgId).order("code"),
       supabase.from("cashboxes").select("*").eq("org_id", orgId).order("name"),
       supabase.from("journal_entries").select("*").eq("org_id", orgId).order("created_at", { ascending: false }).limit(50),
-      supabase.from("journal_lines").select("*", { count: "exact" }).eq("org_id", orgId),
+      supabase.from("v_account_balances").select("*").eq("org_id", orgId),
       supabase.from("audit_logs").select("id,action,entity,at").eq("org_id", orgId).order("at", { ascending: false }).limit(30),
     ]);
-    const failed = [bRes, aRes, cRes, eRes, lRes, auRes].find((result) => result.error);
+    // احتياط: إن لم يُطبَّق 0004 بعد، نعود للتحميل القديم (محدود بـ 1000 سطر وينبّه التنبيه).
+    let lineRows = lRes.data;
+    let lineErr = lRes.error;
+    if (lineErr) {
+      const old = await supabase.from("journal_lines").select("*").eq("org_id", orgId);
+      lineRows = old.data;
+      lineErr = old.error;
+    }
+    const failed = [bRes, aRes, cRes, eRes, auRes, { error: lineErr }].find((result) => result.error);
     if (failed?.error) notify("err", `تعذر تحميل بيانات المنشأة: ${failed.error.message}`);
     setBranches(bRes.data ?? []);
     setAccounts(aRes.data ?? []);
     setCashboxes(cRes.data ?? []);
     setEntries(eRes.data ?? []);
-    setLines(lRes.data ?? []);
-    setLinesTotalCount(typeof lRes.count === "number" ? lRes.count : null);
+    setLines(lineRows ?? []);
     setAudits(auRes.data ?? []);
     if (bRes.data?.[0]) {
       setJeBranch((p) => p || bRes.data![0].id);
@@ -209,6 +228,30 @@ export default function HomePage() {
     document.documentElement.dir = dir;
     try { localStorage.setItem("sama.lang", lang); localStorage.setItem("sama.mode", mode); } catch { /* تجاهل */ }
   }, [lang, mode, dir]);
+
+  // مالك المنصة: الجواب true لك فقط، وأي خطأ أو false يبقي الواجهة كما هي دون أي أثر.
+  useEffect(() => {
+    if (!user) { setIsOwner(false); return; }
+    supabase.rpc("is_platform_owner").then(({ data, error }) => setIsOwner(!error && data === true));
+  }, [user]);
+
+  useEffect(() => {
+    if (!isOwner || (section as string) !== "owner") return;
+    supabase.rpc("owner_overview").then(({ data, error }) => {
+      if (error) notify("err", `تعذر تحميل لوحة المالك: ${error.message}`);
+      else setOwnerRows((data as Array<Record<string, string | number | null>>) ?? []);
+    });
+  }, [isOwner, section]);
+
+  function issueCode() {
+    askConfirm("تأكيد إصدار كود", `سيُصدر كود باقة ${codePlan} لمدة ${codeMonths} شهر. هل تريد المتابعة؟`, doIssueCode);
+  }
+  async function doIssueCode() {
+    setIssuedCode(null);
+    const { data, error } = await supabase.rpc("owner_issue_code", { p_plan: codePlan, p_months: Number(codeMonths) });
+    if (error) notify("err", `تعذر إصدار الكود: ${error.message}`);
+    else setIssuedCode(String(data));
+  }
 
   useEffect(() => {
     if (!user || !activeOrgId) { setRole(null); return; }
@@ -306,7 +349,11 @@ export default function HomePage() {
     loadOrgData(activeOrgId);
   }
 
-  async function handlePostJournal(e: React.FormEvent) {
+  function handlePostJournal(e: React.FormEvent) {
+    e.preventDefault();
+    askConfirm("تأكيد ترحيل القيد", "بعد الترحيل لا يمكن تعديل القيد أو حذفه، ويمكن عكسه بقيد عكسي فقط. هل تريد المتابعة؟", () => doPostJournal(e));
+  }
+  async function doPostJournal(e: React.FormEvent) {
     e.preventDefault();
     if (!activeOrgId || !jeBranch) return notify("err", "اختر الفرع أولاً");
     setMsg(null);
@@ -327,8 +374,8 @@ export default function HomePage() {
         return {
           [schema.lineKeys.account]: l.account_id,
           [schema.lineKeys.currency]: l.currency,
-          [schema.lineKeys.debit]: dr.toString(),
-          [schema.lineKeys.credit]: cr.toString(),
+          [schema.lineKeys.debit]: Number(dr),
+          [schema.lineKeys.credit]: Number(cr),
         };
       });
 
@@ -340,7 +387,7 @@ export default function HomePage() {
       }
 
       setBusy(true);
-      const { error } = await supabase.rpc("post_journal_entry", {
+      const { error } = await supabase.rpc("post_journal_entry_safe", {
         p_org: activeOrgId,
         p_branch: jeBranch,
         p_date: jeDate,
@@ -362,7 +409,10 @@ export default function HomePage() {
     }
   }
 
-  async function handleReverse(entryId: string) {
+  function handleReverse(entryId: string) {
+    askConfirm("تأكيد عكس القيد", "سيُنشأ قيد عكسي يلغي أثر هذا القيد، ولا يمكن عكس القيد مرتين. هل تريد المتابعة؟", () => doReverse(entryId));
+  }
+  async function doReverse(entryId: string) {
     setBusy(true);
     setMsg(null);
     const { error } = await supabase.rpc("reverse_journal_entry", {
@@ -377,7 +427,11 @@ export default function HomePage() {
     loadOrgData(activeOrgId);
   }
 
-  async function handleCloseBooks(e: React.FormEvent) {
+  function handleCloseBooks(e: React.FormEvent) {
+    e.preventDefault();
+    askConfirm("تأكيد إقفال الفترة", `سيُمنع أي قيد بتاريخ حتى ${closeDate}، ولا توجد إعادة فتح للفترات المقفلة. هل أنت متأكد؟`, () => doCloseBooks(e));
+  }
+  async function doCloseBooks(e: React.FormEvent) {
     e.preventDefault();
     if (!activeOrgId) return;
     setBusy(true);
@@ -391,7 +445,11 @@ export default function HomePage() {
     loadOrgData(activeOrgId);
   }
 
-  async function handleRedeem(e: React.FormEvent) {
+  function handleRedeem(e: React.FormEvent) {
+    e.preventDefault();
+    askConfirm("تأكيد تفعيل الكود", "يُستهلك الكود مرة واحدة ويمدد الاشتراك فوراً. هل تريد المتابعة؟", () => doRedeem(e));
+  }
+  async function doRedeem(e: React.FormEvent) {
     e.preventDefault();
     if (!activeOrgId || !actCode.trim()) return;
     setBusy(true);
@@ -419,7 +477,7 @@ export default function HomePage() {
 
   const trial = trialBalance(accounts, lines);
   const stmts = statements(trial.rows);
-  const truncated = linesTotalCount !== null && linesTotalCount > lines.length;
+  const truncated = lines.length >= 1000;
   const alerts = deriveAlerts({
     branches: branches.length, accounts: accounts.length, cashboxes: cashboxes.length,
     entries: entries.length, totals: trial.totals, orphanAccounts: trial.orphanAccounts, truncated,
@@ -538,7 +596,7 @@ export default function HomePage() {
   return (
     <div dir={dir} className="max-w-5xl mx-auto p-4 pb-16 space-y-5">
       {/* Header */}
-      <header className="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex flex-wrap items-center justify-between gap-3">
+      <header className="sama-clean-topbar sama-royal-header bg-slate-900 border border-slate-800 rounded-2xl p-4 flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center">
             <Building2 className="w-5 h-5" />
@@ -658,6 +716,16 @@ export default function HomePage() {
                 </button>
               );
             })}
+            {isOwner && (
+              <button
+                onClick={() => setSection("owner" as NavId)}
+                className={`flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl text-sm font-medium border transition ${
+                  (section as string) === "owner" ? "bg-emerald-600/20 border-emerald-500 text-emerald-300" : "bg-slate-900 border-slate-800 text-slate-400 hover:text-slate-200"
+                }`}
+              >
+                لوحة المالك
+              </button>
+            )}
           </nav>
 
           {role && (
@@ -665,7 +733,18 @@ export default function HomePage() {
           )}
 
           {/* TAB 1: OVERVIEW */}
+          {section === "home" && <RoyalHomeDashboard orgId={activeOrgId} orgName={orgs.find((o) => o.id === activeOrgId)?.name ?? "Sama Business"} baseCurrency={(orgs.find((o) => o.id === activeOrgId) as { base_currency?: string } | undefined)?.base_currency ?? currencies[0]?.code ?? "USD"} currencies={currencies} branchesCount={branches.length} accountsCount={accounts.length} onNavigate={(s) => setSection(s as never)} />}
+          {(section === "home" || section === "sales" || section === "inventory") && <VoiceAndThermalSuite orgId={activeOrgId} role={role} branches={branches} currencies={currencies} notify={notify} onReload={() => void loadOrgData(activeOrgId)} />}
+          {section === "home" && <SmartAiHub mode="home" orgId={activeOrgId} role={role} branches={branches} accounts={accounts} currencies={currencies} notify={notify} askConfirm={askConfirm} onReload={() => void loadOrgData(activeOrgId)} />}
+          
           {section === "home" && (
+            <details className="sama-classic-home-details bg-white border border-[#E4EAF2] rounded-2xl p-3.5 my-3">
+              <summary className="cursor-pointer list-none flex items-center justify-between text-xs font-bold text-[#152743]">
+                <span>تفاصيل المؤشرات لجميع العملات، التنبيهات، وميزان المراجعة السريع</span>
+                <span className="text-[#2869DB]">عرض / إخفاء ▾</span>
+              </summary>
+              <div className="mt-4 space-y-4">
+
             <div className="space-y-4">
               <h2 className="font-bold">{t("home.title")}</h2>
               <p className="text-xs text-slate-400">{t("home.scope")}</p>
@@ -760,6 +839,9 @@ export default function HomePage() {
                 )}
               </div>
             </div>
+          
+              </div>
+            </details>
           )}
 
           {/* TAB 2: ACCOUNTS & CASHBOXES */}
@@ -857,6 +939,7 @@ export default function HomePage() {
           )}
 
           {/* TAB 3: JOURNAL ENTRIES */}
+          {(section === "accounting" || section === "reports") && <CompleteLedgerView orgId={activeOrgId} defaultCurrency={(orgs.find((o) => o.id === activeOrgId) as { base_currency?: string } | undefined)?.base_currency ?? "USD"} currencies={currencies} />}
           {section === "accounting" && (
             <div className="space-y-4">
               <form onSubmit={handlePostJournal} className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-4">
@@ -1024,6 +1107,7 @@ export default function HomePage() {
           )}
 
           {/* التقارير المالية: ميزان المراجعة وقائمة الدخل والميزانية (لكل عملة على حدة) */}
+          {section === "reports" && <ActionMetricsPanel orgId={activeOrgId} currencies={currencies} branchesCount={branches.length} accountsCount={accounts.length} />}
           {section === "reports" && (
             <div className="space-y-4">
               <div className="flex flex-wrap items-center justify-between gap-2">
@@ -1117,6 +1201,10 @@ export default function HomePage() {
             </div>
           )}
 
+          {section === "ai" && <SmartAiHub mode="ai" orgId={activeOrgId} role={role} branches={branches} accounts={accounts} currencies={currencies} notify={notify} askConfirm={askConfirm} onReload={() => void loadOrgData(activeOrgId)} />}
+          {section === "contacts" && <DebtsProPanel orgId={activeOrgId} role={role} branches={branches} currencies={currencies} notify={notify} askConfirm={askConfirm} onReload={() => void loadOrgData(activeOrgId)} />}
+          {section === "inventory" && <InventoryView orgId={activeOrgId} role={role} currencies={currencies} notify={notify} />}
+          {(section === "sales" || section === "purchases") && <InvoicesView kind={section === "purchases" ? "purchase" : "sales"} orgId={activeOrgId} userId={user.id} role={role} branches={branches} accounts={accounts} currencies={currencies} notify={notify} askConfirm={askConfirm} onPosted={() => void loadOrgData(activeOrgId)} />}
           {/* وحدات مخططة ولم تُبنَ بعد: لا تُعرض كمكتملة */}
           {navItems.find((n) => n.id === section)?.status === "soon" && (
             <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-3">
@@ -1126,6 +1214,86 @@ export default function HomePage() {
               <ul className="list-disc ps-5 space-y-1 text-sm text-slate-300">
                 {t(`soon.${section}`).split("|").map((x) => <li key={x}>{x}</li>)}
               </ul>
+            </div>
+          )}
+
+          {/* لوحة مالك المنصة: لا تُعرض إلا إن أكّدت قاعدة البيانات أنك المالك */}
+          {isOwner && (section as string) === "owner" && (
+            <div className="space-y-4">
+              <h2 className="font-bold">لوحة المالك</h2>
+              <p className="text-xs text-slate-400">أعداد فقط، بلا أي مبالغ مالية للشركات.</p>
+              <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="text-xs text-slate-400 border-b border-slate-800">
+                    <tr>
+                      <th className="py-2 text-start">الشركة</th><th className="py-2 text-start">الباقة</th>
+                      <th className="py-2 text-start">ينتهي</th><th className="py-2 text-end">الأعضاء</th><th className="py-2 text-end">القيود</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800/70 text-xs">
+                    {ownerRows.map((r) => (
+                      <tr key={String(r.org_id)}>
+                        <td className="py-2">{r.org_name}</td>
+                        <td className="py-2">{r.plan_code ?? "-"}</td>
+                        <td className="py-2" dir="ltr">{r.period_end ? String(r.period_end).slice(0, 10) : "-"}</td>
+                        <td className="py-2 text-end">{r.members}</td>
+                        <td className="py-2 text-end">{r.entries}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {ownerRows.length === 0 && <p className="text-xs text-slate-400 py-2">لا توجد شركات بعد.</p>}
+              </div>
+              <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-3">
+                <h3 className="font-bold text-sm">إصدار كود تفعيل</h3>
+                <div className="flex flex-wrap gap-2">
+                  <select value={codePlan} onChange={(e) => setCodePlan(e.target.value)} className="px-3 py-2 text-sm border">
+                    <option value="free">free</option><option value="shop">shop</option><option value="mall">mall</option>
+                  </select>
+                  <input value={codeMonths} onChange={(e) => setCodeMonths(e.target.value)} inputMode="numeric" className="w-24 px-3 py-2 text-sm border" aria-label="الأشهر" />
+                  <button onClick={issueCode} className="bg-emerald-600 px-4 py-2 rounded-xl text-sm font-semibold">إصدار</button>
+                </div>
+                {issuedCode && (
+                  <p className="text-sm">الكود (يظهر مرة واحدة، انسخه الآن): <span className="font-mono text-emerald-400" dir="ltr">{issuedCode}</span></p>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* فحص شامل للنظام: يعتمد على البيانات المحمّلة فقط (قراءة، لا يغيّر شيئاً) */}
+          {section === "settings" && (
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-2">
+              <h3 className="font-bold text-sm">فحص شامل للعمليات</h3>
+              {[
+                { ok: Object.values(trial.totals).every((x) => x.balanced), label: "ميزان المراجعة متوازن لكل عملة" },
+                { ok: trial.orphanAccounts.length === 0, label: "كل الحركات على حسابات معروفة" },
+                { ok: !truncated, label: "الأرصدة كاملة (غير مقتطعة)" },
+                { ok: branches.length > 0, label: "يوجد فرع واحد على الأقل" },
+                { ok: accounts.length > 0, label: "دليل الحسابات غير فارغ" },
+                { ok: cashboxes.length > 0, label: "يوجد صندوق واحد على الأقل" },
+              ].map((c) => (
+                <p key={c.label} className={`text-xs flex items-center gap-2 ${c.ok ? "text-emerald-400" : "text-rose-400"}`}>
+                  <span aria-hidden>{c.ok ? "✓" : "✗"}</span>{c.label}
+                </p>
+              ))}
+            </div>
+          )}
+
+          {confirmReq && (
+            <div role="dialog" aria-modal="true" className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70">
+              <div className="bg-slate-900 border border-slate-700 rounded-2xl p-5 max-w-sm w-full space-y-4">
+                <h3 className="font-bold">{confirmReq.title}</h3>
+                <p className="text-sm text-slate-300">{confirmReq.msg}</p>
+                <div className="flex gap-2 justify-end">
+                  <button onClick={() => setConfirmReq(null)} className="bg-slate-800 px-4 py-2 rounded-xl text-sm">إلغاء</button>
+                  <button
+                    onClick={() => { const run = confirmReq.run; setConfirmReq(null); run(); }}
+                    className="bg-emerald-600 px-4 py-2 rounded-xl text-sm font-semibold"
+                  >
+                    تأكيد
+                  </button>
+                </div>
+              </div>
             </div>
           )}
         </>

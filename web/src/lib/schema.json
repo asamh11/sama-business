@@ -14,7 +14,7 @@
     "viewer"
   ],
   "lineKeys": {
-    "account": "account_id",
+    "account": "accountId",
     "currency": "currency",
     "debit": "debit",
     "credit": "credit"

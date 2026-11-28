@@ -19,16 +19,16 @@ const ALL: AccountMode[] = ["personal", "retail", "enterprise"];
 export const NAV: NavItem[] = [
   { id: "home", status: "available", modes: ALL },
   { id: "accounting", status: "available", modes: ALL },
-  { id: "sales", status: "soon", modes: ["retail", "enterprise"] },
-  { id: "purchases", status: "soon", modes: ["retail", "enterprise"] },
-  { id: "inventory", status: "soon", modes: ["retail", "enterprise"] },
-  { id: "contacts", status: "soon", modes: ["retail", "enterprise"] },
+  { id: "sales", status: "available", modes: ["retail", "enterprise"] },
+  { id: "purchases", status: "available", modes: ["retail", "enterprise"] },
+  { id: "inventory", status: "available", modes: ["retail", "enterprise"] },
+  { id: "contacts", status: "available", modes: ["retail", "enterprise"] },
   { id: "cash", status: "available", modes: ALL },
   { id: "hr", status: "soon", modes: ["enterprise"] },
   // الفروع مطلوبة لترحيل القيود والصناديق، لذا تظهر في كل الأنماط.
   { id: "branches", status: "available", modes: ALL },
   { id: "reports", status: "available", modes: ALL },
-  { id: "ai", status: "soon", modes: ALL },
+  { id: "ai", status: "available", modes: ALL },
   { id: "settings", status: "available", modes: ALL },
 ];
 

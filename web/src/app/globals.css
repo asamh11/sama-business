@@ -1,1 +1,577 @@
 @import "tailwindcss";
+
+:root {
+  --royal-900: #1e3a8a;
+  --royal-700: #1d4ed8;
+  --royal-600: #2563eb;
+  --royal-50: #eff6ff;
+  --ink: #0f172a;
+  --muted: #475569;
+  --line: #dbeafe;
+  --surface: #ffffff;
+}
+
+body {
+  min-height: 100vh;
+  color: var(--ink);
+  background: linear-gradient(180deg, #eff6ff 0%, #f8fafc 45%, #ffffff 100%) fixed;
+}
+
+/* البطاقات البيضاء بظل ناعم وحدود زرقاء فاتحة */
+.bg-slate-900 {
+  background: var(--surface) !important;
+  color: var(--ink) !important;
+  border-color: var(--line) !important;
+  box-shadow: 0 6px 22px -10px rgba(30, 58, 138, 0.16);
+}
+.bg-slate-950, input, select, textarea {
+  background-color: #f8fafc !important;
+  color: var(--ink) !important;
+  border-color: #cbd5e1 !important;
+  border-radius: 0.75rem;
+}
+input:focus, select:focus, textarea:focus {
+  outline: none;
+  border-color: var(--royal-600) !important;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.18);
+}
+
+/* الترويسة بالأزرق الملكي */
+header.bg-slate-900 {
+  background: linear-gradient(135deg, var(--royal-900), var(--royal-700)) !important;
+  color: #ffffff !important;
+  border-color: transparent !important;
+}
+header.bg-slate-900 p, header.bg-slate-900 .text-slate-400 { color: #dbeafe !important; }
+header.bg-slate-900 .bg-slate-800 { background: rgba(255, 255, 255, 0.16) !important; color: #ffffff !important; }
+header.bg-slate-900 select { background: rgba(255, 255, 255, 0.95) !important; color: var(--ink) !important; }
+
+/* النصوص والحدود الثانوية */
+.text-slate-100, .text-slate-200 { color: var(--ink) !important; }
+.text-slate-300 { color: #334155 !important; }
+.text-slate-400 { color: var(--muted) !important; }
+.border-slate-800, .border-slate-700, .divide-slate-800\/70 > :not(:first-child) { border-color: var(--line) !important; }
+.bg-slate-800 { background-color: var(--royal-50) !important; color: var(--royal-900) !important; }
+.bg-slate-800:hover { background-color: #dbeafe !important; }
+
+/* الأزرار الأساسية بالأزرق الملكي */
+.bg-emerald-600 {
+  background: linear-gradient(135deg, var(--royal-600), var(--royal-700)) !important;
+  color: #ffffff !important;
+  box-shadow: 0 6px 16px -6px rgba(37, 99, 235, 0.55);
+}
+.bg-emerald-600:hover { filter: brightness(1.06); }
+.bg-emerald-500\/20 { background-color: #dbeafe !important; }
+.text-emerald-400, .text-emerald-300 { color: var(--royal-700) !important; }
+.border-emerald-500 { border-color: var(--royal-600) !important; }
+.bg-emerald-600\/20 { background-color: var(--royal-50) !important; }
+.bg-emerald-950\/70 { background-color: #ecfdf5 !important; color: #065f46 !important; border-color: #a7f3d0 !important; }
+.bg-rose-950\/70 { background-color: #fef2f2 !important; color: #991b1b !important; border-color: #fecaca !important; }
+.text-rose-300, .text-rose-400 { color: #dc2626 !important; }
+.text-amber-300 { color: #b45309 !important; }
+
+/* شريط تنقل سفلي ثابت ومريح على الهاتف + شبكة منظمة على التابلت والكمبيوتر */
+@media (max-width: 640px) {
+  body { padding-bottom: 78px; }
+  nav[aria-label="main"] {
+    position: fixed;
+    bottom: 0; left: 0; right: 0; z-index: 40;
+    display: flex; overflow-x: auto; gap: 6px;
+    padding: 8px 10px calc(8px + env(safe-area-inset-bottom));
+    background: rgba(255, 255, 255, 0.96);
+    backdrop-filter: blur(12px);
+    border-top: 1px solid var(--line);
+    box-shadow: 0 -6px 20px rgba(15, 23, 42, 0.08);
+  }
+  nav[aria-label="main"] button { flex: 0 0 auto; white-space: nowrap; font-size: 12px; padding: 8px 12px; }
+}
+@media print {
+  header, nav, button { display: none !important; }
+  body { background: #fff !important; }
+}
+
+/* تحسين تباين التنبيهات المتوسطة والعالية والمسافة السفلية للهاتف */
+.bg-amber-950\/40 { background-color: #fffbeb !important; color: #92400e !important; border-color: #fde68a !important; }
+.bg-rose-950\/60 { background-color: #fef2f2 !important; color: #991b1b !important; border-color: #fecaca !important; }
+.text-amber-400 { color: #b45309 !important; }
+@media (max-width: 640px) { body { padding-bottom: 104px !important; } }
+
+/* === SAMA_ROYAL_DESIGN_SYSTEM_V5 === */
+:root {
+  --sama-navy: #152743;
+  --sama-royal: #2869DB;
+  --sama-royal-hover: #1F57BC;
+  --sama-bg: #F7F9FC;
+  --sama-surface: #FFFFFF;
+  --sama-gold: #C5A46D;
+  --sama-muted: #68778D;
+  --sama-border: #E4EAF2;
+  --sama-success: #15803D;
+  --sama-success-bg: #ECFDF3;
+  --sama-warn: #C2410C;
+  --sama-warn-bg: #FFF7ED;
+  --sama-danger: #B91C1C;
+  --sama-danger-bg: #FEF2F2;
+  --sama-radius: 16px;
+  --sama-shadow: 0 2px 10px -2px rgba(21, 39, 67, 0.05), 0 1px 3px rgba(21, 39, 67, 0.03);
+}
+
+html, body {
+  font-family: "IBM Plex Sans Arabic", "Tajawal", "Inter", system-ui, sans-serif !important;
+  background-color: var(--sama-bg) !important;
+  background-image: none !important;
+  color: var(--sama-navy) !important;
+  font-size: 15.5px !important;
+  line-height: 1.65 !important;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+html[dir="ltr"], html[dir="ltr"] body {
+  font-family: "Inter", "IBM Plex Sans Arabic", system-ui, sans-serif !important;
+}
+
+/* 1. رأس الصفحة المؤسسي (أبيض نظيف + خط ذهبي هادئ محدود في الأعلى) */
+body header {
+  background: var(--sama-surface) !important;
+  background-image: none !important;
+  color: var(--sama-navy) !important;
+  border: 1px solid var(--sama-border) !important;
+  border-top: 3px solid var(--sama-navy) !important;
+  border-radius: var(--sama-radius) !important;
+  box-shadow: var(--sama-shadow) !important;
+  padding: 0.9rem 1.05rem !important;
+  position: relative;
+}
+body header::after {
+  content: "";
+  position: absolute;
+  top: -3px;
+  inset-inline-start: 18px;
+  width: 64px;
+  height: 3px;
+  background: var(--sama-gold);
+  border-radius: 2px;
+}
+body header h1, body header h2, body header strong, body header span {
+  color: var(--sama-navy) !important;
+}
+body header p {
+  color: var(--sama-muted) !important;
+  font-size: 0.85rem !important;
+}
+body header svg {
+  color: var(--sama-royal) !important;
+}
+body header select, body header button {
+  background-color: var(--sama-bg) !important;
+  color: var(--sama-navy) !important;
+  border: 1px solid var(--sama-border) !important;
+  border-radius: 12px !important;
+  font-weight: 600 !important;
+  box-shadow: none !important;
+  transition: background-color 0.15s ease, border-color 0.15s ease !important;
+}
+body header button:hover, body header select:hover {
+  background-color: #EDF2F8 !important;
+  border-color: #CBD7E8 !important;
+}
+
+/* 2. توحيد البطاقات (Pure Minimal + Royal Enterprise — تحويل أي بطاقة داكنة إلى بطاقة بيضاء نظيفة) */
+main .bg-slate-900,
+main .bg-slate-950 {
+  background-color: var(--sama-surface) !important;
+  color: var(--sama-navy) !important;
+  border: 1px solid var(--sama-border) !important;
+  border-radius: var(--sama-radius) !important;
+  box-shadow: var(--sama-shadow) !important;
+}
+main .border-slate-800,
+main .border-slate-700,
+main .divide-slate-800 > :not([hidden]) ~ :not([hidden]),
+main .divide-slate-800\/70 > :not([hidden]) ~ :not([hidden]) {
+  border-color: var(--sama-border) !important;
+}
+
+/* 3. العناوين والنصوص الثانوية بتباين عالٍ */
+h1, h2, h3, h4, strong, th {
+  color: var(--sama-navy);
+  font-weight: 700 !important;
+}
+main .text-slate-400,
+main .text-slate-500 {
+  color: var(--sama-muted) !important;
+}
+main .text-slate-300,
+main .text-slate-200 {
+  color: var(--sama-navy) !important;
+}
+.text-xs {
+  font-size: 0.875rem !important;
+  line-height: 1.6 !important;
+}
+.text-sm {
+  font-size: 0.95rem !important;
+  line-height: 1.6 !important;
+}
+.text-\[11px\], .text-\[10px\] {
+  font-size: 0.8rem !important;
+  line-height: 1.45 !important;
+}
+
+/* 4. الأزرار المعتمدة: الأزرق الملكي #2869DB للأساسي و الفاتح للثانوي */
+main button.bg-emerald-600,
+main button.bg-blue-600,
+main button.bg-indigo-600 {
+  background-color: var(--sama-royal) !important;
+  color: #FFFFFF !important;
+  border: 1px solid transparent !important;
+  border-radius: 12px !important;
+  font-weight: 600 !important;
+  transition: background-color 0.15s ease, transform 0.12s ease !important;
+}
+main button.bg-emerald-600:hover,
+main button.bg-blue-600:hover {
+  background-color: var(--sama-royal-hover) !important;
+}
+main button.bg-slate-800,
+main button.bg-slate-700 {
+  background-color: var(--sama-bg) !important;
+  color: var(--sama-navy) !important;
+  border: 1px solid var(--sama-border) !important;
+  border-radius: 12px !important;
+  font-weight: 600 !important;
+}
+main button.bg-slate-800:hover {
+  background-color: #E7EEF7 !important;
+}
+main .bg-emerald-600.text-white {
+  background-color: var(--sama-royal) !important;
+  color: #FFFFFF !important;
+}
+main .bg-slate-800:not(button) {
+  background-color: #EEF3F9 !important;
+  color: var(--sama-navy) !important;
+}
+
+/* 5. حقول الإدخال والجداول الاحترافية */
+input, select, textarea {
+  background-color: var(--sama-bg) !important;
+  color: var(--sama-navy) !important;
+  border: 1px solid var(--sama-border) !important;
+  border-radius: 12px !important;
+  font-size: 16px !important;
+  font-weight: 500 !important;
+  transition: border-color 0.15s ease, background-color 0.15s ease !important;
+}
+input:focus, select:focus, textarea:focus {
+  background-color: var(--sama-surface) !important;
+  border-color: var(--sama-royal) !important;
+  outline: none !important;
+  box-shadow: 0 0 0 3px rgba(40, 105, 219, 0.12) !important;
+}
+input::placeholder, textarea::placeholder {
+  color: var(--sama-muted) !important;
+  opacity: 1 !important;
+}
+table {
+  border-collapse: collapse;
+}
+table thead th {
+  background-color: var(--sama-bg) !important;
+  color: var(--sama-muted) !important;
+  font-weight: 600 !important;
+  padding: 0.65rem 0.6rem !important;
+}
+table tbody td {
+  padding: 0.65rem 0.6rem !important;
+  color: var(--sama-navy) !important;
+}
+table tbody tr:hover {
+  background-color: #FAFBFD !important;
+}
+
+/* 6. شريط التنقل السفلي للهاتف (نظيف وموحد) */
+nav button {
+  border-radius: 12px !important;
+  font-weight: 600 !important;
+}
+
+/* 7. وضع الخصوصية: إخفاء الأرصدة والأرقام المالية */
+body.sama-privacy-on strong,
+body.sama-privacy-on .font-mono,
+body.sama-privacy-on td.text-end {
+  filter: blur(6px);
+  user-select: none;
+  transition: filter 0.15s ease;
+}
+
+/* 8. الطباعة الحرارية 80mm محفوظة بالكامل */
+.sama-thermal-print { display: none; }
+@media print {
+  body * { visibility: hidden !important; }
+  .sama-thermal-print, .sama-thermal-print * { visibility: visible !important; }
+  .sama-thermal-print {
+    display: block !important;
+    position: fixed !important;
+    inset: 0 !important;
+    width: 80mm !important;
+    margin: 0 auto !important;
+    padding: 4mm !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+    font-size: 12px !important;
+    line-height: 1.5 !important;
+  }
+}
+
+/* === SAMA_ROYAL_WHITE_HEADER_V6 === */
+header,
+header > div:first-child,
+.sama-royal-header {
+  background: #FFFFFF !important;
+  background-image: none !important;
+  color: #152743 !important;
+  border-color: #E4EAF2 !important;
+  box-shadow: 0 2px 10px -2px rgba(21, 39, 67, 0.06) !important;
+}
+.sama-royal-header {
+  border-top: 2px solid #C5A46D !important;
+  border-radius: 16px !important;
+}
+header h1, header h2, header strong,
+.sama-royal-header h1, .sama-royal-header h2, .sama-royal-header strong {
+  color: #152743 !important;
+}
+header p, header small,
+.sama-royal-header p, .sama-royal-header small {
+  color: #68778D !important;
+}
+header button, .sama-royal-header button {
+  background: #F7F9FC !important;
+  background-image: none !important;
+  color: #152743 !important;
+  border: 1px solid #E4EAF2 !important;
+  border-radius: 12px !important;
+}
+header button:hover, .sama-royal-header button:hover {
+  background: #EDF2F8 !important;
+}
+header button svg, .sama-royal-header button svg {
+  color: #2869DB !important;
+}
+header select, .sama-royal-header select {
+  background: #F7F9FC !important;
+  color: #152743 !important;
+  border: 1px solid #E4EAF2 !important;
+  border-radius: 12px !important;
+}
+
+/* === SAMA_ROYAL_HERO_LAYOUT_V7 === */
+html, body {
+  overflow-x: hidden !important;
+  max-width: 100vw !important;
+}
+input, select, textarea {
+  min-width: 0 !important;
+  max-width: 100% !important;
+}
+.sama-royal-hero {
+  background: linear-gradient(135deg, #152743 0%, #1D375E 58%, #2869DB 100%) !important;
+  color: #FFFFFF !important;
+  border: 1px solid rgba(197, 164, 109, 0.38) !important;
+  box-shadow: 0 14px 30px -10px rgba(21, 39, 67, 0.35) !important;
+}
+.sama-royal-hero * {
+  color: inherit;
+}
+.sama-hero-btn {
+  background: rgba(255, 255, 255, 0.14) !important;
+  color: #FFFFFF !important;
+  border: 1px solid rgba(255, 255, 255, 0.22) !important;
+}
+.sama-hero-subbox {
+  background: rgba(255, 255, 255, 0.11) !important;
+  color: #FFFFFF !important;
+  border: 1px solid rgba(255, 255, 255, 0.16) !important;
+}
+.sama-kpi-card {
+  background: #FFFFFF !important;
+  border: 1px solid #E4EAF2 !important;
+  border-radius: 16px !important;
+  box-shadow: 0 2px 10px -2px rgba(21, 39, 67, 0.05) !important;
+}
+.sama-quick-primary {
+  background: #2869DB !important;
+  color: #FFFFFF !important;
+  border: 1px solid #2869DB !important;
+}
+.sama-quick-soft {
+  background: #F7F9FC !important;
+  color: #152743 !important;
+  border: 1px solid #E4EAF2 !important;
+}
+
+/* === SAMA_TOPBAR_PERFECTION_V8 === */
+html body header,
+html body .sama-clean-topbar {
+  background: #FFFFFF !important;
+  background-image: none !important;
+  color: #152743 !important;
+  border: 1px solid #E4EAF2 !important;
+  border-top: 2px solid #C5A46D !important;
+  border-radius: 18px !important;
+  box-shadow: 0 4px 18px -6px rgba(21, 39, 67, 0.08) !important;
+  padding: 0.9rem 1rem !important;
+}
+
+/* إزالة أي خلفية أو مربع أبيض داخلي مشوّه داخل الشريط العلوي */
+html body header div,
+html body .sama-clean-topbar div {
+  background: transparent !important;
+  background-image: none !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+/* إبراز صندوق أيقونة الشعار فقط بلون كحلي ملكي ولمسة ذهبية */
+html body header div:has(> svg:only-child),
+html body .sama-clean-topbar div:has(> svg:only-child) {
+  background: #152743 !important;
+  border: 1px solid rgba(197, 164, 109, 0.55) !important;
+  border-radius: 12px !important;
+  width: 2.6rem !important;
+  height: 2.6rem !important;
+}
+html body header div:has(> svg:only-child) svg,
+html body .sama-clean-topbar div:has(> svg:only-child) svg {
+  color: #FFFFFF !important;
+  stroke: #FFFFFF !important;
+}
+
+html body header h1,
+html body header h2,
+html body header strong,
+html body .sama-clean-topbar h1,
+html body .sama-clean-topbar h2,
+html body .sama-clean-topbar strong {
+  color: #152743 !important;
+  background: transparent !important;
+}
+
+html body header p,
+html body header small,
+html body .sama-clean-topbar p,
+html body .sama-clean-topbar small {
+  color: #68778D !important;
+  background: transparent !important;
+  opacity: 1 !important;
+}
+
+html body header span,
+html body .sama-clean-topbar span {
+  color: #152743 !important;
+}
+
+html body header select,
+html body .sama-clean-topbar select {
+  background-color: #F7F9FC !important;
+  color: #152743 !important;
+  border: 1px solid #DCE4F0 !important;
+  border-radius: 12px !important;
+  font-weight: 700 !important;
+}
+
+html body header button,
+html body .sama-clean-topbar button {
+  background-color: #F7F9FC !important;
+  color: #152743 !important;
+  border: 1px solid #DCE4F0 !important;
+  border-radius: 12px !important;
+  box-shadow: none !important;
+}
+
+html body header button:hover,
+html body .sama-clean-topbar button:hover {
+  background-color: #EDF2F8 !important;
+  border-color: #2869DB !important;
+}
+
+html body header button svg,
+html body .sama-clean-topbar button svg {
+  color: #2869DB !important;
+  stroke: #2869DB !important;
+}
+
+/* إخفاء شريط التمرير أسفل شريط التنقل السفلي على الهاتف */
+nav, nav > div {
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+}
+nav::-webkit-scrollbar, nav > div::-webkit-scrollbar {
+  display: none !important;
+}
+
+
+/* === SAMA_FINAL_POLISH_V9 === */
+html body header.sama-clean-topbar,
+html body .sama-clean-topbar.sama-clean-topbar,
+html body header[class] {
+  color: #152743 !important;
+}
+
+/* إظهار البريد الإلكتروني والنصوص الثانوية بوضوح */
+html body header[class] p,
+html body .sama-clean-topbar.sama-clean-topbar p,
+html body header[class] [class*="text-blue-"],
+html body .sama-clean-topbar.sama-clean-topbar [class*="text-blue-"],
+html body header[class] [class*="text-slate-"],
+html body .sama-clean-topbar.sama-clean-topbar [class*="text-slate-"],
+html body header[class] [class*="text-white"],
+html body .sama-clean-topbar.sama-clean-topbar [class*="text-white"] {
+  color: #475569 !important;
+  opacity: 1 !important;
+}
+
+/* عنوان Sama Business باللون الكحلي العميق */
+html body header[class] h1,
+html body header[class] h2,
+html body header[class] strong,
+html body .sama-clean-topbar.sama-clean-topbar h1,
+html body .sama-clean-topbar.sama-clean-topbar h2,
+html body .sama-clean-topbar.sama-clean-topbar strong {
+  color: #152743 !important;
+  opacity: 1 !important;
+}
+
+/* إظهار نصوص وأيقونات أزرار الشريط العلوي (English / خروج / تحديث) بوضوح 100% */
+html body header[class] button,
+html body header[class] button *,
+html body header[class] button[class*="text-"],
+html body header[class] button [class*="text-"],
+html body .sama-clean-topbar.sama-clean-topbar button,
+html body .sama-clean-topbar.sama-clean-topbar button *,
+html body .sama-clean-topbar.sama-clean-topbar button[class*="text-"],
+html body .sama-clean-topbar.sama-clean-topbar button [class*="text-"] {
+  color: #152743 !important;
+  opacity: 1 !important;
+  font-weight: 700 !important;
+}
+
+html body header[class] button svg,
+html body .sama-clean-topbar.sama-clean-topbar button svg {
+  color: #2869DB !important;
+  stroke: #2869DB !important;
+}
+
+/* إبقاء أيقونة الشعار الكحلية بيضاء من الداخل */
+html body header[class] div:has(> svg:only-child),
+html body .sama-clean-topbar.sama-clean-topbar div:has(> svg:only-child) {
+  background: #152743 !important;
+  border: 1px solid rgba(197, 164, 109, 0.6) !important;
+}
+html body header[class] div:has(> svg:only-child) svg,
+html body .sama-clean-topbar.sama-clean-topbar div:has(> svg:only-child) svg {
+  color: #FFFFFF !important;
+  stroke: #FFFFFF !important;
+}

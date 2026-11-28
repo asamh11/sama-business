@@ -1,13 +1,23 @@
 import { createClient } from "@supabase/supabase-js";
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim() ?? "";
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim() ?? "";
+function normalizeOrigin(raw: string): string {
+  const v = raw.trim();
+  if (!v) return "";
+  try { return new URL(v).origin; }
+  catch { return v.replace(/\/rest\/v1.*$/i, "").replace(/\/+$/, ""); }
+}
 
-export const isSupabaseConfigured = Boolean(supabaseUrl && supabaseAnonKey);
+const supabaseUrl = normalizeOrigin(process.env.NEXT_PUBLIC_SUPABASE_URL ?? "");
+const supabaseKey = (
+  process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ??
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ??
+  ""
+).trim();
 
-// Never place the service-role key in this browser client. RLS is the security boundary.
+export const isSupabaseConfigured = Boolean(supabaseUrl && supabaseKey);
+
 export const supabase = createClient(
   supabaseUrl || "https://placeholder.supabase.co",
-  supabaseAnonKey || "placeholder-key",
+  supabaseKey || "placeholder-key",
   { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true } }
 );
