@@ -92,6 +92,7 @@ export default function HomePage() {
   const [cashboxes, setCashboxes] = useState<Cashbox[]>([]);
   const [entries, setEntries] = useState<JournalEntry[]>([]);
   const [lines, setLines] = useState<JournalLine[]>([]);
+  const [linesTotalCount, setLinesTotalCount] = useState<number | null>(null);
   const [audits, setAudits] = useState<AuditLog[]>([]);
 
   // Forms
@@ -156,7 +157,7 @@ export default function HomePage() {
       supabase.from("accounts").select("*").eq("org_id", orgId).order("code"),
       supabase.from("cashboxes").select("*").eq("org_id", orgId).order("name"),
       supabase.from("journal_entries").select("*").eq("org_id", orgId).order("created_at", { ascending: false }).limit(50),
-      supabase.from("journal_lines").select("*").eq("org_id", orgId),
+      supabase.from("journal_lines").select("*", { count: "exact" }).eq("org_id", orgId),
       supabase.from("audit_logs").select("id,action,entity,at").eq("org_id", orgId).order("at", { ascending: false }).limit(30),
     ]);
     const failed = [bRes, aRes, cRes, eRes, lRes, auRes].find((result) => result.error);
@@ -166,6 +167,7 @@ export default function HomePage() {
     setCashboxes(cRes.data ?? []);
     setEntries(eRes.data ?? []);
     setLines(lRes.data ?? []);
+    setLinesTotalCount(typeof lRes.count === "number" ? lRes.count : null);
     setAudits(auRes.data ?? []);
     if (bRes.data?.[0]) {
       setJeBranch((p) => p || bRes.data![0].id);
@@ -325,8 +327,8 @@ export default function HomePage() {
         return {
           [schema.lineKeys.account]: l.account_id,
           [schema.lineKeys.currency]: l.currency,
-          [schema.lineKeys.debit]: Number(dr),
-          [schema.lineKeys.credit]: Number(cr),
+          [schema.lineKeys.debit]: dr.toString(),
+          [schema.lineKeys.credit]: cr.toString(),
         };
       });
 
@@ -417,7 +419,7 @@ export default function HomePage() {
 
   const trial = trialBalance(accounts, lines);
   const stmts = statements(trial.rows);
-  const truncated = lines.length >= 1000;
+  const truncated = linesTotalCount !== null && linesTotalCount > lines.length;
   const alerts = deriveAlerts({
     branches: branches.length, accounts: accounts.length, cashboxes: cashboxes.length,
     entries: entries.length, totals: trial.totals, orphanAccounts: trial.orphanAccounts, truncated,
